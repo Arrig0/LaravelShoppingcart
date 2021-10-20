@@ -93,7 +93,7 @@ class CartItem implements Arrayable, Jsonable
      *
      * @var float
      */
-    private $discountRate = 0;
+    private $discountRate;
 
     /**
      * CartItem constructor.
@@ -124,6 +124,7 @@ class CartItem implements Arrayable, Jsonable
         $this->price = floatval($price);
         $this->weight = floatval($weight);
         $this->options = new CartItemOptions($options);
+        $this->discountRate = new CartItemDiscount(0, 'currency');
         $this->rowId = $this->generateRowId($id, $options);
     }
 
