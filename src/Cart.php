@@ -584,16 +584,18 @@ class Cart
     /**
      * Set the discount rate for the cart item with the given rowId.
      *
-     * @param string    $rowId
-     * @param int|float $taxRate
+     * @param string $rowId
+     * @param int|float $amount
+     * @param string $type
+     * @param string $description
      *
      * @return void
      */
-    public function setDiscount($rowId, $discount)
+    public function setDiscount($rowId, $amount, $type = 'currency', $description = '')
     {
         $cartItem = $this->get($rowId);
 
-        $cartItem->setDiscountRate($discount);
+        $cartItem->setDiscount([$amount, $type, $description]);
 
         $content = $this->getContent();
 
@@ -766,10 +768,12 @@ class Cart
                 return $this->total();
             case 'tax':
                 return $this->tax();
+            case 'discount':
+                return $this->discount();
             case 'subtotal':
                 return $this->subtotal();
             default:
-                return;
+                return null;
         }
     }
 

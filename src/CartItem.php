@@ -372,6 +372,13 @@ class CartItem implements Arrayable, Jsonable
         return $this;
     }
 
+    public function setDiscount($attributes)
+    {
+        $this->discountRate = new CartItemDiscount(...$attributes);
+
+        return $this;
+    }
+
     /**
      * Get an attribute from the cart item or get the associated model.
      *
