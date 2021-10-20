@@ -340,13 +340,13 @@ class Cart
      *
      * @param int    $decimals
      * @param string $decimalPoint
-     * @param string $thousandSeperator
+     * @param string $thousandSeparator
      *
      * @return string
      */
-    public function total($decimals = null, $decimalPoint = null, $thousandSeperator = null)
+    public function total($decimals = null, $decimalPoint = null, $thousandSeparator = null)
     {
-        return $this->numberFormat($this->totalFloat(), $decimals, $decimalPoint, $thousandSeperator);
+        return $this->numberFormat($this->totalFloat(), $decimals, $decimalPoint, $thousandSeparator);
     }
 
     /**
@@ -366,13 +366,13 @@ class Cart
      *
      * @param int    $decimals
      * @param string $decimalPoint
-     * @param string $thousandSeperator
+     * @param string $thousandSeparator
      *
      * @return string
      */
-    public function tax($decimals = null, $decimalPoint = null, $thousandSeperator = null)
+    public function tax($decimals = null, $decimalPoint = null, $thousandSeparator = null)
     {
-        return $this->numberFormat($this->taxFloat(), $decimals, $decimalPoint, $thousandSeperator);
+        return $this->numberFormat($this->taxFloat(), $decimals, $decimalPoint, $thousandSeparator);
     }
 
     /**
@@ -392,13 +392,13 @@ class Cart
      *
      * @param int    $decimals
      * @param string $decimalPoint
-     * @param string $thousandSeperator
+     * @param string $thousandSeparator
      *
      * @return string
      */
-    public function subtotal($decimals = null, $decimalPoint = null, $thousandSeperator = null)
+    public function subtotal($decimals = null, $decimalPoint = null, $thousandSeparator = null)
     {
-        return $this->numberFormat($this->subtotalFloat(), $decimals, $decimalPoint, $thousandSeperator);
+        return $this->numberFormat($this->subtotalFloat(), $decimals, $decimalPoint, $thousandSeparator);
     }
 
     /**
@@ -418,13 +418,13 @@ class Cart
      *
      * @param int    $decimals
      * @param string $decimalPoint
-     * @param string $thousandSeperator
+     * @param string $thousandSeparator
      *
      * @return string
      */
-    public function discount($decimals = null, $decimalPoint = null, $thousandSeperator = null)
+    public function discount($decimals = null, $decimalPoint = null, $thousandSeparator = null)
     {
-        return $this->numberFormat($this->discountFloat(), $decimals, $decimalPoint, $thousandSeperator);
+        return $this->numberFormat($this->discountFloat(), $decimals, $decimalPoint, $thousandSeparator);
     }
 
     /**
@@ -444,13 +444,13 @@ class Cart
      *
      * @param int    $decimals
      * @param string $decimalPoint
-     * @param string $thousandSeperator
+     * @param string $thousandSeparator
      *
      * @return string
      */
-    public function initial($decimals = null, $decimalPoint = null, $thousandSeperator = null)
+    public function initial($decimals = null, $decimalPoint = null, $thousandSeparator = null)
     {
-        return $this->numberFormat($this->initialFloat(), $decimals, $decimalPoint, $thousandSeperator);
+        return $this->numberFormat($this->initialFloat(), $decimals, $decimalPoint, $thousandSeparator);
     }
 
     /**
@@ -470,13 +470,13 @@ class Cart
      *
      * @param int    $decimals
      * @param string $decimalPoint
-     * @param string $thousandSeperator
+     * @param string $thousandSeparator
      *
      * @return string
      */
-    public function priceTotal($decimals = null, $decimalPoint = null, $thousandSeperator = null)
+    public function priceTotal($decimals = null, $decimalPoint = null, $thousandSeparator = null)
     {
-        return $this->numberFormat($this->priceTotalFloat(), $decimals, $decimalPoint, $thousandSeperator);
+        return $this->numberFormat($this->priceTotalFloat(), $decimals, $decimalPoint, $thousandSeparator);
     }
 
     /**
@@ -496,13 +496,13 @@ class Cart
      *
      * @param int    $decimals
      * @param string $decimalPoint
-     * @param string $thousandSeperator
+     * @param string $thousandSeparator
      *
      * @return string
      */
-    public function weight($decimals = null, $decimalPoint = null, $thousandSeperator = null)
+    public function weight($decimals = null, $decimalPoint = null, $thousandSeparator = null)
     {
-        return $this->numberFormat($this->weightFloat(), $decimals, $decimalPoint, $thousandSeperator);
+        return $this->numberFormat($this->weightFloat(), $decimals, $decimalPoint, $thousandSeparator);
     }
 
     /**
@@ -880,11 +880,11 @@ class Cart
      * @param $value
      * @param $decimals
      * @param $decimalPoint
-     * @param $thousandSeperator
+     * @param $thousandSeparator
      *
      * @return string
      */
-    private function numberFormat($value, $decimals, $decimalPoint, $thousandSeperator)
+    private function numberFormat($value, $decimals, $decimalPoint, $thousandSeparator)
     {
         if (is_null($decimals)) {
             $decimals = config('cart.format.decimals', 2);
@@ -894,11 +894,11 @@ class Cart
             $decimalPoint = config('cart.format.decimal_point', '.');
         }
 
-        if (is_null($thousandSeperator)) {
-            $thousandSeperator = config('cart.format.thousand_separator', ',');
+        if (is_null($thousandSeparator)) {
+            $thousandSeparator = config('cart.format.thousand_separator', ',');
         }
 
-        return number_format($value, $decimals, $decimalPoint, $thousandSeperator);
+        return number_format($value, $decimals, $decimalPoint, $thousandSeparator);
     }
 
     /**
