@@ -14,6 +14,7 @@ use ReflectionClass;
 /**
  * @property-read mixed discount
  * @property-read float discountTotal
+ * @property-read float priceDiscount
  * @property-read float priceTarget
  * @property-read float priceNet
  * @property-read float priceTotal
@@ -242,6 +243,11 @@ class CartItem implements Arrayable, Jsonable
         return $this->numberFormat($this->taxTotal, $decimals, $decimalPoint, $thousandSeparator);
     }
 
+    public function taxedPrice()
+    {
+        return $this->priceDiscount + $this->tax;
+    }
+
     /**
      * Returns the formatted discount.
      *
@@ -268,6 +274,20 @@ class CartItem implements Arrayable, Jsonable
     public function discountTotal($decimals = null, $decimalPoint = null, $thousandSeparator = null)
     {
         return $this->numberFormat($this->discountTotal, $decimals, $decimalPoint, $thousandSeparator);
+    }
+
+    /**
+     * Return the price with discount
+     *
+     * @return float|int|void
+     */
+    public function discountedPrice()
+    {
+        if (!$this->discountRate) {
+            return $this->price;
+        }
+
+        return $this->discountRate->applyDiscount($this->price);
     }
 
     /**
@@ -373,8 +393,19 @@ class CartItem implements Arrayable, Jsonable
         return $this;
     }
 
+    /**
+     * Set the discount
+     *
+     * @param array $attributes
+     *
+     * @return \Gloudemans\Shoppingcart\CartItem
+     */
     public function setDiscount($attributes)
     {
+        if (!isset($attributes[0])) {
+            throw new \InvalidArgumentException('Please supply a valid discount amount');
+        }
+
         $this->discountRate = new CartItemDiscount(...$attributes);
 
         return $this;
