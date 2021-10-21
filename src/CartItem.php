@@ -92,7 +92,7 @@ class CartItem implements Arrayable, Jsonable
     /**
      * The discount rate for the cart item.
      *
-     * @var float
+     * @var CartItemDiscount
      */
     private $discountRate;
 
@@ -569,7 +569,7 @@ class CartItem implements Arrayable, Jsonable
      * Getter for the raw internal discount rate.
      * Should be used in calculators.
      *
-     * @return float
+     * @return CartItemDiscount
      */
     public function getDiscountRate()
     {

@@ -57,11 +57,18 @@ class Cart
     private $updatedAt;
 
     /**
-     * Defines the discount percentage.
+     * Defines the discount amount.
      *
      * @var float
      */
-    private $discount = 0;
+    private $discountAmount;
+
+    /**
+     * Defines the discount type.
+     *
+     * @var string
+     */
+    private $discountType;
 
     /**
      * Defines the tax rate.
@@ -608,18 +615,20 @@ class Cart
      * Set the global discount percentage for the cart.
      * This will set the discount for all cart items.
      *
-     * @param float $discount
+     * @param float $value
+     * @param string $type
      *
      * @return void
      */
-    public function setGlobalDiscount($discount)
+    public function setGlobalDiscount($value, $type)
     {
-        $this->discount = $discount;
+        $this->discountAmount = $value;
+        $this->discountType = $type;
 
         $content = $this->getContent();
         if ($content && $content->count()) {
-            $content->each(function ($item, $key) {
-                $item->setDiscountRate($this->discount);
+            $content->each(function ($item) {
+                $item->setDiscount($this->discountAmount, $this->discountType);
             });
         }
     }

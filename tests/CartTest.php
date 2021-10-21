@@ -1608,14 +1608,15 @@ class CartTest extends TestCase
     /**
      * Get an instance of the cart with discount.
      *
-     * @param int $discount
+     * @param float $value
+     * @param string $type;
      *
      * @return \Gloudemans\Shoppingcart\Cart
      */
-    private function getCartDiscount($discount = 50)
+    private function getCartDiscount($value = 50, $type = 'currency')
     {
         $cart = $this->getCart();
-        $cart->setGlobalDiscount($discount);
+        $cart->setGlobalDiscount($value, $type);
 
         return $cart;
     }
