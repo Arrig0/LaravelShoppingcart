@@ -2,7 +2,7 @@
 
 namespace Gloudemans\Shoppingcart;
 
-class CartItemDiscount
+class Discount
 {
     /**
      * @var int|float
@@ -20,7 +20,12 @@ class CartItemDiscount
     private $description;
 
     /**
-     * CartItemDiscount constructor.
+     * @var Voucher
+     */
+    private $voucher;
+
+    /**
+     * Discount constructor.
      * @param int|float $value
      * @param string $type
      * @param string $description
@@ -38,6 +43,33 @@ class CartItemDiscount
         $this->value = $value;
         $this->type = $type;
         $this->description = $description;
+        $this->voucher = null;
+    }
+
+    /**
+     * Associate a Coupon to Discount.
+     * @param Voucher $coupon
+     */
+    public function associateCoupon($coupon)
+    {
+        $this->voucher = $coupon;
+    }
+
+    /**
+     * Remove Associated Coupon from Discount.
+     * @param Voucher $coupon
+     */
+    public function disassociateCoupon()
+    {
+        $this->voucher = null;
+    }
+
+    /**
+     * Check if Coupon is applied.
+     */
+    public function hasCoupon()
+    {
+        return !is_null($this->voucher);
     }
 
     /**
@@ -70,7 +102,8 @@ class CartItemDiscount
     {
         switch ($this->type) {
             case 'currency':
-                return '- ' . $moneySymbol . $this->numberFormat($this->value, $decimals, $decimalPoint, $thousandSeparator);
+                return '- ' . $this->numberFormat($this->value, $decimals, $decimalPoint, $thousandSeparator) . ' ' . $moneySymbol;
+                //return '- ' . $moneySymbol . $this->numberFormat($this->value, $decimals, $decimalPoint, $thousandSeparator);
             case 'percentage':
                 return '- ' . $this->numberFormat($this->value, $decimals, $decimalPoint, $thousandSeparator) . '%';
         }

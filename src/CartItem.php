@@ -92,7 +92,7 @@ class CartItem implements Arrayable, Jsonable
     /**
      * The discount rate for the cart item.
      *
-     * @var CartItemDiscount
+     * @var Discount
      */
     private $discountRate;
 
@@ -125,7 +125,7 @@ class CartItem implements Arrayable, Jsonable
         $this->price = floatval($price);
         $this->weight = floatval($weight);
         $this->options = new CartItemOptions($options);
-        $this->discountRate = new CartItemDiscount(0, 'currency');
+        $this->discountRate = new Discount(0, 'currency');
         $this->rowId = $this->generateRowId($id, $options);
     }
 
@@ -380,20 +380,6 @@ class CartItem implements Arrayable, Jsonable
     }
 
     /**
-     * Set the discount rate.
-     *
-     * @param int|float $discountRate
-     *
-     * @return \Gloudemans\Shoppingcart\CartItem
-     */
-    public function setDiscountRate($discountRate)
-    {
-        $this->discountRate = $discountRate;
-
-        return $this;
-    }
-
-    /**
      * Set the discount
      *
      * @param array $attributes
@@ -406,7 +392,7 @@ class CartItem implements Arrayable, Jsonable
             throw new \InvalidArgumentException('Please supply a valid discount amount');
         }
 
-        $this->discountRate = new CartItemDiscount(...$attributes);
+        $this->discountRate = new Discount(...$attributes);
 
         return $this;
     }
@@ -569,10 +555,20 @@ class CartItem implements Arrayable, Jsonable
      * Getter for the raw internal discount rate.
      * Should be used in calculators.
      *
-     * @return CartItemDiscount
+     * @return Discount
      */
-    public function getDiscountRate()
+    public function getDiscount()
     {
         return $this->discountRate;
+    }
+
+    /**
+     * Check if item has Discount
+     *
+     * @return bool
+     */
+    public function hasDiscount()
+    {
+        return $this->discountRate->value > 0;
     }
 }

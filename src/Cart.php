@@ -6,6 +6,7 @@ use Carbon\Carbon;
 use Closure;
 use Gloudemans\Shoppingcart\Contracts\Buyable;
 use Gloudemans\Shoppingcart\Contracts\InstanceIdentifier;
+use Gloudemans\Shoppingcart\Discount;
 use Gloudemans\Shoppingcart\Exceptions\CartAlreadyStoredException;
 use Gloudemans\Shoppingcart\Exceptions\InvalidRowIDException;
 use Gloudemans\Shoppingcart\Exceptions\UnknownModelException;
@@ -14,12 +15,18 @@ use Illuminate\Database\DatabaseManager;
 use Illuminate\Session\SessionManager;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Traits\Macroable;
+use BeyondCode\Vouchers\Models\Voucher;
+use BeyondCode\Vouchers\Traits\CanTestVouchers;
 
 class Cart
 {
-    use Macroable;
+    use Macroable, CanTestVouchers;
 
     const DEFAULT_INSTANCE = 'default';
+
+    const ITEMS_KEY = 'content';
+
+    const COUPONS_KEY = 'coupons';
 
     /**
      * Instance of the session manager.
@@ -71,6 +78,13 @@ class Cart
     private $discountType;
 
     /**
+     * Defines the cart discount.
+     *
+     * @var Discount
+     */
+    private $globalDiscount;
+
+    /**
      * Defines the tax rate.
      *
      * @var float
@@ -88,8 +102,24 @@ class Cart
         $this->session = $session;
         $this->events = $events;
         $this->taxRate = config('cart.tax');
+        $this->globalDiscount = new Discount(0);
 
-        $this->instance(self::DEFAULT_INSTANCE);
+        $this->instance( self::DEFAULT_INSTANCE );
+
+        if( $voucher = $this->session->get($this->instance . '.' . self::COUPONS_KEY) ) {
+            try {
+                $this->applyCouponCode($voucher->code);
+            } catch( \Exception $e ) {
+                //$this->emit('cart:coupon-error', $code, $e->getMessage());
+            }
+
+            /*$this->setGlobalDiscount(
+                $voucher->value,
+                ($voucher->type == 'fixed') ? 'currency' : 'percentage',
+                'COUPON ' . $voucher->code,
+                '_FIXED_PER_ORDER_',
+            );*/
+        }
     }
 
     /**
@@ -104,7 +134,7 @@ class Cart
         $instance = $instance ?: self::DEFAULT_INSTANCE;
 
         if ($instance instanceof InstanceIdentifier) {
-            $this->discount = $instance->getInstanceGlobalDiscount();
+            $this->globalDiscount = $instance->getInstanceGlobalDiscount();
             $instance = $instance->getInstanceIdentifier();
         }
 
@@ -145,7 +175,7 @@ class Cart
 
         $cartItem = $this->createCartItem($id, $name, $qty, $price, $weight, $options);
 
-        return $this->addCartItem($cartItem);
+        return $this->addCartItem($cartItem, ($this->discountStrategy == '_EACH_ITEM_PER_ORDER_') ? true : false);
     }
 
     /**
@@ -158,13 +188,13 @@ class Cart
      *
      * @return \Gloudemans\Shoppingcart\CartItem The CartItem
      */
-    public function addCartItem($item, $keepDiscount = false, $keepTax = false, $dispatchEvent = true)
+    public function addCartItem($item, $keepDiscount = true, $keepTax = true, $dispatchEvent = true)
     {
-        if (!$keepDiscount) {
-            $item->setDiscountRate($this->discount);
+        if ($keepDiscount) {
+            $item->setDiscount([$this->globalDiscount->value, $this->globalDiscount->type, $this->globalDiscount->description ]);
         }
 
-        if (!$keepTax) {
+        if ($keepTax) {
             $item->setTaxRate($this->taxRate);
         }
 
@@ -180,7 +210,7 @@ class Cart
             $this->events->dispatch('cart.adding', $item);
         }
 
-        $this->session->put($this->instance, $content);
+        $this->session->put($this->instance . '.' . self::ITEMS_KEY, $content);
 
         if ($dispatchEvent) {
             $this->events->dispatch('cart.added', $item);
@@ -238,7 +268,7 @@ class Cart
 
         $this->events->dispatch('cart.updating', $cartItem);
 
-        $this->session->put($this->instance, $content);
+        $this->session->put($this->instance . '.' . self::ITEMS_KEY, $content);
 
         $this->events->dispatch('cart.updated', $cartItem);
 
@@ -262,7 +292,18 @@ class Cart
 
         $this->events->dispatch('cart.removing', $cartItem);
 
-        $this->session->put($this->instance, $content);
+        $this->session->put($this->instance . '.' . self::ITEMS_KEY, $content);
+
+        if( $this->count() == 0 ) {
+
+        }
+
+        // remove cart coupon if cart is empty
+        if ( ( $this->count() == 0 ) && $this->session->has($this->instance . '.' . self::COUPONS_KEY )) {
+            $coupon = $this->session->get($this->instance . '.' . self::COUPONS_KEY);
+            $this->removeCoupon($coupon);
+            $this->setGlobalDiscount(0);
+        }
 
         $this->events->dispatch('cart.removed', $cartItem);
     }
@@ -302,11 +343,11 @@ class Cart
      */
     public function content()
     {
-        if (is_null($this->session->get($this->instance))) {
+        if (is_null($this->session->get($this->instance . '.' . self::ITEMS_KEY))) {
             return new Collection([]);
         }
 
-        return $this->session->get($this->instance);
+        return $this->session->get($this->instance . '.' . self::ITEMS_KEY);
     }
 
     /**
@@ -337,9 +378,21 @@ class Cart
      */
     public function totalFloat()
     {
-        return $this->getContent()->reduce(function ($total, CartItem $cartItem) {
+        /*return $this->getContent()->reduce(function ($total, CartItem $cartItem) {
             return $total + $cartItem->total;
-        }, 0);
+        }, 0);*/
+        if( $this->globalDiscount ) {
+			$res = $this->getContent()->reduce(function ($total, CartItem $cartItem) {
+					return $total + $cartItem->total;
+				}, 0);
+			$total = $this->globalDiscount->applyDiscount( $res );
+			return $total;
+
+		} else {
+			return $this->getContent()->reduce(function ($total, CartItem $cartItem) {
+				return $total + $cartItem->total;
+			}, 0);
+		}
     }
 
     /**
@@ -415,7 +468,11 @@ class Cart
      */
     public function discountFloat()
     {
-        return $this->getContent()->reduce(function ($discount, CartItem $cartItem) {
+        /*return $this->getContent()->reduce(function ($discount, CartItem $cartItem) {
+            return $discount + $cartItem->discountTotal;
+        }, 0);*/
+
+        return $this->globalDiscount->calculateDiscount($this->initial()) + $this->getContent()->reduce(function ($discount, CartItem $cartItem) {
             return $discount + $cartItem->discountTotal;
         }, 0);
     }
@@ -546,7 +603,7 @@ class Cart
 
         $content->put($cartItem->rowId, $cartItem);
 
-        $this->session->put($this->instance, $content);
+        $this->session->put($this->instance . '.' . self::ITEMS_KEY, $content);
     }
 
     /**
@@ -567,7 +624,7 @@ class Cart
 
         $content->put($cartItem->rowId, $cartItem);
 
-        $this->session->put($this->instance, $content);
+        $this->session->put($this->instance . '.' . self::ITEMS_KEY, $content);
     }
 
     /**
@@ -608,7 +665,7 @@ class Cart
 
         $content->put($cartItem->rowId, $cartItem);
 
-        $this->session->put($this->instance, $content);
+        $this->session->put($this->instance . '.' . self::ITEMS_KEY, $content);
     }
 
     /**
@@ -617,22 +674,52 @@ class Cart
      *
      * @param float $value
      * @param string $type
+     * @param string $strategy
+     * @param string $description
      *
      * @return void
      */
-    public function setGlobalDiscount($value, $type)
+    public function setGlobalDiscount($value, $type = 'currency', $description = '', $strategy = '_FIXED_PER_ORDER_')
     {
         $this->discountAmount = $value;
         $this->discountType = $type;
+        $this->discountDescription = $description;
+        $this->discountStrategy = $strategy;
 
-        $content = $this->getContent();
-        if ($content && $content->count()) {
-            $content->each(function ($item) {
-                $item->setDiscount($this->discountAmount, $this->discountType);
-            });
+        $calculateDiscount = function ($totalPrice, $discontAmount, $discountType )
+        {
+            switch ($discountType) {
+                case 'currency':
+                    return ($discontAmount > $totalPrice) ? 0 : $discontAmount;
+                case 'percentage':
+                    return ($totalPrice * ($discontAmount / 100));
+            }
+        };
+
+        switch( $strategy ) {
+            case '_EACH_ITEM_PER_ORDER_':
+            default:
+                $content = $this->getContent();
+                if ($content && $content->count()) {
+                    $content->each(function ($item) {
+                        $item->setDiscount([$this->discountAmount, $this->discountType, $this->discountDescription]); //$item->setDiscount($this->discountAmount, $this->discountType);
+                    });
+                }
+            break;
+            case '_ONCE_ITEM_PER_ORDER_':
+                $content = $this->getContent();
+                if ($content && $content->count()) {
+                    $item = $content->first();
+                    $item->setDiscount([$this->discountAmount, $this->discountType, $this->discountDescription]);
+                }
+            break;
+            case '_FIXED_PER_ORDER_':
+                //$val = $calculateDiscount($this->total, $this->discountAmount, $this->discountType);
+                $this->globalDiscount = new Discount( $this->discountAmount, $this->discountType, $this->discountDescription );
+            break;
         }
     }
-
+    
     /**
      * Store an the current instance of the cart.
      *
@@ -643,6 +730,11 @@ class Cart
     public function store($identifier)
     {
         $content = $this->getContent();
+        $coupons = $this->getCoupons();
+        $data    = [
+            self::ITEMS_KEY     => $content,
+            self::COUPONS_KEY   => $coupons,
+        ];
 
         if ($identifier instanceof InstanceIdentifier) {
             $identifier = $identifier->getInstanceIdentifier();
@@ -657,7 +749,7 @@ class Cart
         $this->getConnection()->table($this->getTableName())->insert([
             'identifier' => $identifier,
             'instance'   => $instance,
-            'content'    => serialize($content),
+            'content'    => serialize($data),
             'created_at' => $this->createdAt ?: Carbon::now(),
             'updated_at' => Carbon::now(),
         ]);
@@ -693,13 +785,21 @@ class Cart
 
         $content = $this->getContent();
 
-        foreach ($storedContent as $cartItem) {
+        $coupons = $this->getCoupons();
+
+        foreach ($storedContent[self::ITEMS_KEY] as $cartItem) {
             $content->put($cartItem->rowId, $cartItem);
+        }
+
+        foreach ($storedContent[self::COUPONS_KEY] as $coupon) {
+            $coupons->put($coupon->code, $coupon);
         }
 
         $this->events->dispatch('cart.restored');
 
-        $this->session->put($this->instance, $content);
+        $this->session->put($this->instance . '.' . self::ITEMS_KEY, $content);
+
+        $this->session->put($this->instance . '.' . self::COUPONS_KEY, $coupons);
 
         $this->instance($currentInstance);
 
@@ -794,10 +894,134 @@ class Cart
     protected function getContent()
     {
         if ($this->session->has($this->instance)) {
-            return $this->session->get($this->instance);
+            return $this->session->get($this->instance . '.' . self::ITEMS_KEY);
         }
 
         return new Collection();
+    }
+
+    public function applyCouponCode( $code )
+    {
+        $user = auth()->user();
+        $content = $this->getContent();
+        if (!$content->count())
+            return false; // TODO: throw error
+        try {
+            $voucher = $this->checkForRedeemByCode($user, $code); // \BeyondCode\Vouchers\Vouchers::checkForRedeemByCode($user, $code);
+        } catch (\Exception $e) {
+            throw $e;
+        }
+
+        // CHECK VOUCHER'S OPTIONAL MODEL AGAINST ITEMS IN THE CART
+        if( $voucher->model ) {
+            $content->each(function ($item) use($voucher) {
+                if( $item->model->is( $voucher->model ) ) {
+                    $this->setDiscount(
+                        $item->rowId,
+                        $voucher->value,
+                        ($voucher->type == 'fixed') ? 'currency' : 'percentage',
+                        'COUPON '.$voucher->code
+                    );
+                    $item->getDiscount()->associateCoupon( $voucher );
+                }
+            });
+        } else {
+            $this->addCoupon($voucher);
+            $this->setGlobalDiscount(
+                $voucher->value,
+                ($voucher->type == 'fixed') ? 'currency' : 'percentage',
+                'COUPON '.$voucher->code,
+                '_FIXED_PER_ORDER_',
+            );
+        }
+
+    }
+
+    public function removeCouponCode( $code ) {
+
+        $content = $this->getContent();
+        $removed = false;
+        $content->each(function ($item) use($code, &$removed) {
+            if( $item->hasDiscount() && $item->getDiscount()->hasCoupon() ) {
+                $coupon = $item->getDiscount()->voucher;
+                if( $coupon->code == $code ) {
+                    $this->setDiscount($item->rowId, 0);
+                    $item->getDiscount()->disassociateCoupon();
+                    $removed = true;
+                }
+            }
+        });
+
+        if (!$removed && $this->session->has($this->instance . '.' . self::COUPONS_KEY )) {
+            $coupon = $this->session->get($this->instance . '.' . self::COUPONS_KEY);
+            if( $coupon->code == $code ) {
+                $this->removeCoupon($coupon);
+                $this->setGlobalDiscount(0);
+                $removed = true;
+            }
+        }
+
+        try {
+            if (!$removed) { //if (is_null($coupon))
+                throw \BeyondCode\Vouchers\Exceptions\VoucherIsInvalid::withCode($code);
+            }
+        } catch (\Exception $e) {
+            throw $e;
+        }
+    }
+
+    /**
+     * Get the carts coupons, if there is no coupon set yet, return a new empty Collection.
+     *
+     * @return \Illuminate\Support\Collection
+     */
+    protected function getCoupons()
+    {
+        if ($this->session->has($this->instance . '.' . self::COUPONS_KEY )) {
+            return $this->session->get($this->instance . '.' . self::COUPONS_KEY);
+        }
+
+        return new Collection();
+    }
+
+    /**
+     * @return Collection
+     */
+    public function getAllCoupons()
+    {
+        $content = $this->getContent();
+        $coupons = new Collection([]);
+        $content->each(function ($item) use(&$coupons) {
+            if( $item->hasDiscount() && $item->getDiscount()->hasCoupon() ) {
+                $coupons->push( $item->getDiscount()->voucher );
+            }
+        });
+
+        if ($this->session->has($this->instance . '.' . self::COUPONS_KEY )) {
+            $coupons->push( $this->session->get($this->instance . '.' . self::COUPONS_KEY ) );
+        }
+
+        return $coupons;
+    }
+
+    protected function addCoupon( Voucher $coupon )
+    {
+        $this->session->put($this->instance . '.' . self::COUPONS_KEY, $coupon);
+    }
+
+    protected function removeCoupon( Voucher $coupon )
+    {
+        $this->session->put($this->instance . '.' . self::COUPONS_KEY, null);
+    }
+
+    /**
+     * Get the coupons of the cart.
+     *
+     * @return \Illuminate\Support\Collection
+     */
+    public function coupons()
+    {
+        return $this->getCoupons();
     }
 
     /**
